@@ -14,38 +14,64 @@
  * Иногда промисы от API будут приходить в состояние rejected, (прямо как и API в реальной жизни)
  * Ответ будет приходить в поле {result}
  */
- import Api from '../tools/api';
+import * as R from "ramda";
+import Api from "../tools/api";
 
- const api = new Api();
+const api = new Api();
 
- /**
-  * Я – пример, удали меня
-  */
- const wait = time => new Promise(resolve => {
-     setTimeout(resolve, time);
- })
+/**
+ * Я – пример, удали меня
+ */
+const wait = (time) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, time);
+  });
 
- const processSequence = ({value, writeLog, handleSuccess, handleError}) => {
-     /**
-      * Я – пример, удали меня
-      */
-     writeLog(value);
+const isLengthValid = R.allPass([
+  R.pipe(R.length, R.lt(R.__, 10)),
+  R.pipe(R.length, R.gt(R.__, 2)),
+]);
+const isPositive = R.pipe(Number, R.gt(R.__, 0));
+const isNumber = R.test(/^\d*\.?\d+$/);
 
-     api.get('https://api.tech/numbers/base', {from: 2, to: 10, number: '01011010101'}).then(({result}) => {
-         writeLog(result);
-     });
+const round = R.pipe(Number, Math.round);
 
-     wait(2500).then(() => {
-         writeLog('SecondLog')
+const processSequence = ({ value, writeLog, handleSuccess, handleError }) => {
+  const log = R.tap(writeLog);
+  const onError = () => handleError("ValidationError");
 
-         return wait(1500);
-     }).then(() => {
-         writeLog('ThirdLog');
+  log(value);
 
-         return wait(400);
-     }).then(() => {
-         handleSuccess('Done');
-     });
- }
+  // Валидация
+  if (!isLengthValid(value) || !isPositive(value) || !isNumber(value)) {
+    onError();
+    return;
+  }
+
+  const rounded = round(value);
+  log(String(rounded));
+
+  // Перевод в двоичную систему
+  api
+    .get("https://api.tech/numbers/base", {
+      from: 10,
+      to: 2,
+      number: String(rounded),
+    })
+    .then(({ result }) => {
+      log(result);
+      const length = result.length;
+      log(String(length));
+      const squared = Math.pow(length, 2);
+      log(String(squared));
+      const mod3 = squared % 3;
+      log(String(mod3));
+      return api.get(`https://animals.tech/${mod3}`);
+    })
+    .then(({ result }) => {
+      handleSuccess(result);
+    })
+    .catch(() => handleError("ValidationError"));
+};
 
 export default processSequence;
